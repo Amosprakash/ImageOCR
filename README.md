@@ -146,7 +146,3 @@ git push
 
 ---
 
-If you want, I can also **export this README as a ready-to-download `.md` file** so you can directly save it and push.  
-
-Do you want me to do that?
-```
