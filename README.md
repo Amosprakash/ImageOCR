@@ -122,3 +122,5 @@ Commit and push it to GitHub:
 git add README.md
 git commit -m "Add polished README"
 git push
+
+is this ok
