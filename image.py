@@ -1,4 +1,8 @@
 # image.py
+"""
+Image preprocessing and OCR module for ImageOCR.
+Handles PaddleOCR and Tesseract integration with advanced image preprocessing.
+"""
 import cv2
 import numpy as np
 import pytesseract
@@ -6,6 +10,11 @@ from paddleocr import PaddleOCR
 import log as Log
 import re
 from Levenshtein import ratio as lev_ratio
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # === Initialize PaddleOCR ===
 try:
@@ -21,15 +30,30 @@ except Exception as e:
     Log.log.warning(f"Custom PP-OCR models not found, using default: {e}")
     ocr = PaddleOCR(use_angle_cls=True, lang='en')
 
-# === Paths ===
-TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+# === Configure Tesseract from environment variable ===
+TESSERACT_PATH = os.getenv("TESSERACT_PATH", "tesseract")
+if TESSERACT_PATH != "tesseract":
+    if not os.path.exists(TESSERACT_PATH):
+        Log.log.warning(f"Tesseract not found at {TESSERACT_PATH}, falling back to system PATH")
+        pytesseract.pytesseract.tesseract_cmd = "tesseract"
+    else:
+        pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
 CONFIDENCE_THRESHOLD = 0.75
 
 
 # === Super-resolution helper (optional) ===
-def super_resolve(img,debug=False):
+def super_resolve(img, debug=False):
+    """
+    Apply super-resolution to enhance image quality using FSRCNN model.
+
+    Args:
+        img: Input image
+        debug: If True, save intermediate results
+
+    Returns:
+        Enhanced image
+    """
     try:
         sr = cv2.dnn_superres.DnnSuperResImpl_create()
         sr.readModel("FSRCNN_x4.pb")
@@ -42,6 +66,15 @@ def super_resolve(img,debug=False):
     return img
 
 def safe_to_gray(img):
+    """
+    Safely convert image to grayscale regardless of input format.
+
+    Args:
+        img: Input image (BGR, BGRA, or grayscale)
+
+    Returns:
+        Grayscale image
+    """
     if len(img.shape) == 2:  # already grayscale
         return img
     elif len(img.shape) == 3 and img.shape[2] == 3:
@@ -53,6 +86,15 @@ def safe_to_gray(img):
 
 # === Deskew helper ===
 def deskew_image(image):
+    """
+    Automatically deskew (straighten) a tilted image using contour detection.
+
+    Args:
+        image: Input image
+
+    Returns:
+        Deskewed image
+    """
     try:
         gray = safe_to_gray(image)
         _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -305,24 +347,54 @@ def preprocess_image(img, debug=False):
 
     return thresh
 
-def is_Lowcontrast(image,threshold =15.0):
-    gray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-    min_value,max_value = gray.min(),gray.max()
-    return (max_value-min_value) < threshold
+def is_low_contrast(image, threshold=15.0):
+    """
+    Check if image has low contrast.
 
-def is_resoultion(img,height=500):
-    print(img.shape[0])
-    return img.shape[0] < height
+    Args:
+        image: Input image
+        threshold: Minimum contrast threshold
+
+    Returns:
+        bool: True if low contrast, False otherwise
+    """
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    min_value, max_value = gray.min(), gray.max()
+    return (max_value - min_value) < threshold
+
+
+def is_low_resolution(img, min_height=500):
+    """
+    Check if image resolution is too low.
+
+    Args:
+        img: Input image
+        min_height: Minimum acceptable height in pixels
+
+    Returns:
+        bool: True if resolution is too low, False otherwise
+    """
+    Log.log.info(f"Image height: {img.shape[0]}px")
+    return img.shape[0] < min_height
 
 
 def validate(img):
-    blur,fm = detect_blur(img)
+    """
+    Validate image quality for OCR processing.
+
+    Args:
+        img: Input image to validate
+
+    Returns:
+        tuple: (is_valid, message) where is_valid is bool and message is str
+    """
+    blur, fm = detect_blur(img)
     if blur:
-        return False,f"the Image is Blur (focus = {fm:.2f})"
-    if  is_Lowcontrast(img):
-        return False, " the Image have low Contrast"
-    if is_resoultion(img):
-        return False," Upload the Image with Higher resoultion "
-    return True,"Good"
+        return False, f"The image is blurry (focus measure = {fm:.2f})"
+    if is_low_contrast(img):
+        return False, "The image has low contrast"
+    if is_low_resolution(img):
+        return False, "Please upload an image with higher resolution"
+    return True, "Image quality is good"
 
 

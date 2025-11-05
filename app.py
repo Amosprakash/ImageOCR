@@ -10,9 +10,14 @@ import uvicorn
 import log as Log
 import upload
 import os
+from dotenv import load_dotenv
 
-# Set Google Vision credentials (absolute path)
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"E:\Google Visioin\semiotic-cove-448406-j3-f2bc0fc5da35.json"
+# Load environment variables
+load_dotenv()
+
+# Set Google Vision credentials from environment variable (if needed)
+if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
 
 @asynccontextmanager
@@ -35,10 +40,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
-# Enable CORS
+# Enable CORS - Configure allowed origins via environment variable
+# For production, specify exact domains instead of "*"
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
+    allow_credentials=True,
     allow_headers=["*"],
     allow_methods=["*"],
 )
@@ -67,4 +75,7 @@ app.include_router(upload.router, prefix="/api", tags=["Upload"])
 
 
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="192.168.0.109", port=3000, reload=True)
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "3000"))
+    reload = os.getenv("RELOAD", "True").lower() == "true"
+    uvicorn.run("app:app", host=host, port=port, reload=reload)

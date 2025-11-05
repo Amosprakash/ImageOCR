@@ -15,16 +15,24 @@ import numpy as np
 import asyncio
 import log as Log
 import hashlib
-from  image import run_paddle_ocr,run_tesseract_on_low_conf
+from image import run_paddle_ocr, run_tesseract_on_low_conf
+from dotenv import load_dotenv
 
-# --- Configure Tesseract and Poppler ---
-TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-POPPLER_PATH = r"C:\Program Files\poppler-25.07.0\Library\bin"
+# Load environment variables
+load_dotenv()
+
+# --- Configure Tesseract and Poppler from environment variables ---
+TESSERACT_PATH = os.getenv("TESSERACT_PATH", "tesseract")  # Default to system PATH
+POPPLER_PATH = os.getenv("POPPLER_PATH", None)  # Optional for PDF processing
 ocr_cache = {}
 
-if not os.path.exists(TESSERACT_PATH):
-    raise FileNotFoundError(f"Tesseract not found at {TESSERACT_PATH}")
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+# Only set tesseract_cmd if a specific path is provided
+if TESSERACT_PATH != "tesseract":
+    if not os.path.exists(TESSERACT_PATH):
+        Log.log.warning(f"Tesseract not found at {TESSERACT_PATH}, falling back to system PATH")
+        pytesseract.pytesseract.tesseract_cmd = "tesseract"
+    else:
+        pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
 # --- Download NLTK resources ---
 nltk.download('stopwords', quiet=True)
@@ -32,6 +40,16 @@ nltk.download("punkt", quiet=True)
 
 # --- Keyword Extraction ---
 def extract_keywords(text: str, top_n: int = 100) -> str:
+    """
+    Extract top keywords from text using RAKE algorithm.
+
+    Args:
+        text: Input text to extract keywords from
+        top_n: Number of top keywords to return
+
+    Returns:
+        Space-separated string of keywords
+    """
     stop_words = stopwords.words("english")
     rake = Rake(stopwords=stop_words)
     rake.extract_keywords_from_text(text)
@@ -63,10 +81,30 @@ def enhance_and_correct_image(image: np.ndarray) -> np.ndarray:
     return binarized
 
 def get_image_hash(content: bytes) -> str:
-    """Generate a unique hash for the image content."""
+    """
+    Generate a unique hash for the image content.
+
+    Args:
+        content: Raw image bytes
+
+    Returns:
+        MD5 hash string
+    """
     return hashlib.md5(content).hexdigest()
+
+
 # --- Async OCR Pipeline ---
-async def extract_text(file) -> str:
+async def extract_text(file):
+    """
+    Extract text from various file formats (images, videos, PDFs, DOCX, Excel, CSV, TXT).
+
+    Args:
+        file: UploadFile object with filename and content
+
+    Returns:
+        dict: {"success": bool, "message": str, "text": str} for images
+        str: Extracted text for other file types
+    """
     ext = file.filename.split(".")[-1].lower()
     content = await file.read()
     text = ""
@@ -190,14 +228,14 @@ async def extract_text(file) -> str:
             text = content.decode("utf-8")
 
         else:
-            print(f"Unsupported file type: {ext} for {file.filename}")
+            Log.log.warning(f"Unsupported file type: {ext} for {file.filename}")
 
     except Exception as e:
-        print(f"Extraction error for {file.filename}: {str(e)}")
+        Log.log.error(f"Extraction error for {file.filename}: {str(e)}")
         text = ""
 
     if not text.strip():
-        print(f"Warning: No text extracted from {file.filename}")
+        Log.log.warning(f"Warning: No text extracted from {file.filename}")
     return text
 
 # --- Sync wrapper ---
