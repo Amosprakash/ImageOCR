@@ -1,6 +1,47 @@
+# Virtual environment
 venv/
+env/
+.venv/
+
+# Python cache
 __pycache__/
 *.pyc
 *.pyd
+*.pyo
+*.pyi
+
+# Compiled libraries
 *.dll
 *.so
+*.dylib
+
+# Environment variables (contains sensitive data)
+.env
+.env.local
+
+# Logs
+*.log
+log.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+temp_*
+*.tmp
+
+# Model outputs
+*_gray.png
+*_norm.png
+*_sharp.png
+*_thresh.png
+*_superres.png
+preprocessed_result.png
+super_resolve.png
