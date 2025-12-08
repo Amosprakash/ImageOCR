@@ -39,6 +39,10 @@ async def async_ocr_image(file: UploadFile = File(...)):
         # Submit to Celery
         task = process_image_task.delay(content, file.filename)
         
+        # Save job to database
+        from utils.job_store import save_job
+        save_job(task.id, file.filename, status="pending")
+        
         log.info(f"Submitted async OCR task {task.id} for {file.filename}")
         
         return AsyncOCRResponse(
@@ -88,6 +92,7 @@ async def get_task_status(task_id: str):
     """
     try:
         from celery.result import AsyncResult
+        from utils.job_store import get_job, update_job
         
         task = AsyncResult(task_id)
         
@@ -100,14 +105,32 @@ async def get_task_status(task_id: str):
             response["result"] = {"status": "Task is waiting to be processed"}
         elif task.state == 'PROCESSING':
             response["result"] = task.info
+            update_job(task_id, "processing")
         elif task.state == 'SUCCESS':
             response["result"] = task.result
+            update_job(task_id, "completed", result=task.result)
         elif task.state == 'FAILURE':
             response["error"] = str(task.info)
+            update_job(task_id, "failed", error=str(task.info))
         
         return TaskStatusResponse(**response)
     except Exception as e:
         log.error(f"Failed to get task status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/async/jobs")
+async def list_jobs(limit: int = 100, status: str = None):
+    """
+    List recent async jobs.
+    """
+    try:
+        from utils.job_store import list_jobs as get_jobs
+        
+        jobs = get_jobs(limit=limit, status=status)
+        return {"success": True, "jobs": jobs, "count": len(jobs)}
+    except Exception as e:
+        log.error(f"Failed to list jobs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
