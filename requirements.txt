@@ -79,7 +79,7 @@ torch==2.0.0
 torchvision==0.15.1
 tqdm==4.67.1
 trio==0.30.0
-trio-websocket==0.12.2
+trio-websocket==0.12.0
 typing-inspection==0.4.1
 typing_extensions==4.14.0
 urllib3==2.4.0
@@ -88,3 +88,38 @@ websocket-client==1.8.0
 Werkzeug==3.1.3
 wsproto==1.2.0
 yapf==0.43.0
+
+# New dependencies for Document AI Platform v2.0
+streamlit>=1.30.0
+faiss-cpu>=1.7.4
+langchain>=0.1.0
+langchain-openai>=0.0.5
+tiktoken>=0.5.2
+python-Levenshtein>=0.21.0
+fastapi>=0.95.0
+uvicorn>=0.20.0
+paddlepaddle>=2.5.0
+paddleocr>=2.6.0
+pytesseract>=0.3.10
+pdf2image>=1.16.0
+python-docx>=0.8.11
+PyPDF2>=3.0.0
+rake-nltk>=1.0.6
+tenacity>=8.2.0
+
+# Async task processing with Celery and Redis
+celery>=5.3.0
+redis>=5.0.0
+flower>=2.0.0
+
+# Testing and development dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+black>=23.12.0
+flake8>=7.0.0
+mypy>=1.8.0
+isort>=5.13.0
+pre-commit>=3.6.0
+bandit>=1.7.5
+safety>=2.3.5

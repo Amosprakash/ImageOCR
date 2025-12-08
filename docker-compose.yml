@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # Redis for Celery broker and result backend
+  redis:
+    image: redis:7-alpine
+    container_name: imageai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI application
+  api:
+    build: .
+    container_name: imageai-api
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - HOST=0.0.0.0
+      - PORT=3000
+    env_file:
+      - .env
+    volumes:
+      - ./models:/app/models
+      - ./examples:/app/examples
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: python app.py
+
+  # Celery worker for async OCR tasks
+  celery-worker:
+    build: .
+    container_name: imageai-celery-worker
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    env_file:
+      - .env
+    volumes:
+      - ./models:/app/models
+      - ./examples:/app/examples
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A core.celery_tasks worker --loglevel=info --concurrency=2
+
+  # Celery Flower for monitoring
+  celery-flower:
+    build: .
+    container_name: imageai-flower
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A core.celery_tasks flower --port=5555
+
+  # Streamlit UI (optional)
+  streamlit:
+    build: .
+    container_name: imageai-streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:3000
+    env_file:
+      - .env
+    volumes:
+      - ./models:/app/models
+      - ./examples:/app/examples
+    depends_on:
+      - api
+    command: streamlit run frontend/streamlit_app.py --server.port=8501 --server.address=0.0.0.0
+
+volumes:
+  redis_data:
+  logs:
